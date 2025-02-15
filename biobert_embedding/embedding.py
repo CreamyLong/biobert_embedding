@@ -68,13 +68,16 @@ class BiobertEmbedding(object):
         model_path = setup_model() # Folder containing pytorch_model.bin, config.json and vocab.txt
         
         self.model_path = model_path
+        # 检查是否有可用的GPU
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        logger.info(f"Using device: {self.device}")
 
         self.tokens = ""
         self.sentence_tokens = ""
-        # This needs the model folder path, not the pytorch_model.bin path
         self.tokenizer = BertTokenizer.from_pretrained(self.model_path)
-        # Load pre-trained model (weights)
+        # 加载预训练模型并移至GPU(如果可用)
         self.model = BertModel.from_pretrained(self.model_path)
+        self.model = self.model.to(self.device)
         logger.info("Initialization Done !!")
         
 
@@ -109,22 +112,17 @@ class BiobertEmbedding(object):
 
 
     def eval_fwdprop_biobert(self, tokenized_text):
-
-        # Mark each of the tokens as belonging to sentence "1".
         segments_ids = [1] * len(tokenized_text)
-        # Map the token strings to their vocabulary indeces.
         indexed_tokens = self.tokenizer.convert_tokens_to_ids(tokenized_text)
 
-        # Convert inputs to PyTorch tensors
-        tokens_tensor = torch.tensor([indexed_tokens])
-        segments_tensors = torch.tensor([segments_ids])
+        # 将输入张量移至GPU(如果可用)
+        tokens_tensor = torch.tensor([indexed_tokens]).to(self.device)
+        segments_tensors = torch.tensor([segments_ids]).to(self.device)
 
-        # Put the model in "evaluation" mode, meaning feed-forward operation.
         self.model.eval()
-        # Predict hidden states features for each layer
         with torch.no_grad():
             encoded_layers, _ = self.model(tokens_tensor, segments_tensors)
-
+            
         return encoded_layers
 
 
