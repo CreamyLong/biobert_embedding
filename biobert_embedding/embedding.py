@@ -83,9 +83,8 @@ class BiobertEmbedding(object):
 
 
     def process_text(self, text):
-
+        """处理输入文本"""
         marked_text = "[CLS] " + text + " [SEP]"
-        # Tokenize our sentence with the BERT tokenizer.
         tokenized_text = self.tokenizer.tokenize(marked_text)
         return tokenized_text
 
@@ -168,20 +167,28 @@ class BiobertEmbedding(object):
 
     def sentence_vector(self,text):
 
-        logger.info("Taking last layer embedding of each word.")
-        logger.info("Mean of all words for sentence embedding.")
+        logger.info("Generating sentence embedding...")
         tokenized_text = self.process_text(text)
         self.sentence_tokens = tokenized_text
-        encoded_layers = self.eval_fwdprop_biobert(tokenized_text)
 
-        # `encoded_layers` has shape [12 x 1 x 22 x 768]
-        # `token_vecs` is a tensor with shape [22 x 768]
+        # 准备输入
+        segments_ids = [1] * len(tokenized_text)
+        indexed_tokens = self.tokenizer.convert_tokens_to_ids(tokenized_text)
+        
+        # 将输入移动到正确的设备上
+        tokens_tensor = torch.tensor([indexed_tokens], device=self.device)
+        segments_tensors = torch.tensor([segments_ids], device=self.device)
+
+        # 前向传播
+        with torch.no_grad():
+            encoded_layers, _ = self.model(tokens_tensor, segments_tensors)
+            
+        # 获取最后一层的输出并计算平均值
         token_vecs = encoded_layers[11][0]
-
-        # Calculate the average of all 22 token vectors.
         sentence_embedding = torch.mean(token_vecs, dim=0)
-        logger.info("Shape of Sentence Embeddings = %s",str(len(sentence_embedding)))
-        return sentence_embedding
+        
+        logger.info(f"Shape of Sentence Embeddings = {sentence_embedding.shape}")
+        return sentence_embedding.cpu().numpy()  # 返回CPU上的numpy数组
 
 
 if __name__ == "__main__":
